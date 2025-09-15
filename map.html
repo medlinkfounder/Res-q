@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tourist Location Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0b0f1a;
+      color: white;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+    }
+
+    header .logo {
+      display: flex;
+      align-items: center;
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+
+    header .logo img {
+      width: 40px;
+      margin-right: 10px;
+    }
+
+    header nav a {
+      margin: 0 10px;
+      text-decoration: none;
+      color: white;
+      font-weight: 500;
+    }
+
+    main {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    .map-container, .controls {
+      flex: 1;
+      min-width: 320px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+    }
+
+    .map-container {
+      display: flex;
+      flex-direction: column;
+      height: 75vh;
+    }
+
+    #map {
+      flex: 1;
+      border-radius: 12px;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+
+    h2 {
+      margin-bottom: 1rem;
+      color: cyan;
+    }
+
+    /* Shared style for button + status */
+    button, #coords {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;          /* Full width */
+      box-sizing: border-box; /* Prevent overflow */
+      padding: 1rem;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      text-align: center;
+      margin-top: .5rem;
+      background: rgba(255,255,255,0.05); /* glassy background */
+      color: #fff;
+      border: 1px solid rgba(0,255,255,0.4);
+      transition: all .3s ease;
+      box-shadow: none; /* no glow by default */
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+    }
+
+    /* Glow effect only on hover */
+    button:hover, #coords:hover {
+      box-shadow: 0 0 15px rgba(0,255,255,0.8);
+      background: rgba(0,255,255,0.1);
+      cursor: pointer;
+    }
+
+    /* Status box (coords) */
+    #coords {
+      color: #ff4444; /* red text for status */
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <img src="logo.png.png" alt="Logo"> ResQ 112
+    </div>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="wearable.html">Wearable</a>
+      <a href="profile.html">Profile</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="map-container">
+      <h2>Tourist Location Tracker</h2>
+      <div id="map"></div>
+    </div>
+    <div class="controls">
+      <button onclick="shareLocation()">Share My Location</button>
+      <div id="coords">Waiting for location...</div>
+    </div>
+  </main>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([20.5937, 78.9629], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let marker;
+
+    function shareLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            document.getElementById("coords").textContent =
+              `Lat: ${lat}, Lng: ${lng}`;
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([lat, lng]).addTo(map)
+              .bindPopup("You are here!").openPopup();
+            map.setView([lat, lng], 13);
+          },
+          (err) => {
+            document.getElementById("coords").textContent =
+              "Error: " + err.message;
+          }
+        );
+      } else {
+        document.getElementById("coords").textContent =
+          "Geolocation not supported.";
+      }
+    }
+  </script>
+</body>
+</html>

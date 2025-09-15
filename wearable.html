@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>ResQ 112 - Wearable & Emergency Contacts</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet"/>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body{font-family:'Inter',sans-serif;background:#0a0a1a;color:#e0e0e0}
+    #ripple-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
+    .content-overlay{position:relative;z-index:2;min-height:100vh;background:radial-gradient(circle,rgba(10,10,26,0.6),#0a0a1a 80%);backdrop-filter:blur(6px);}
+    .glass-card{background:rgba(255,255,255,0.05);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.1);padding:20px;border-radius:16px}
+    .glow-button{box-shadow:0 0 5px #00ffff,0 0 15px #00ffff;transition:all .3s ease}
+    .glow-button:hover{box-shadow:0 0 10px #00ffff,0 0 25px #00ffff}
+  </style>
+</head>
+<body>
+<canvas id="ripple-canvas"></canvas>
+
+<div class="content-overlay flex flex-col min-h-screen">
+  <!-- Header -->
+  <header class="p-4 bg-black/30 flex justify-between items-center">
+    <div class="flex items-center space-x-2">
+      <img src="logo.png.png" alt="logo" class="h-10 w-10"/>
+      <span class="text-2xl font-bold text-white">ResQ 112</span>
+    </div>
+    <nav>
+      <a href="dashboard.html" class="px-3">Dashboard</a>
+      <a href="profile.html" class="px-3">Profile</a>
+      <a href="wearable.html" class="px-3 font-bold text-cyan-400">Wearable & Contacts</a>
+    </nav>
+  </header>
+
+  <!-- Main -->
+  <main class="flex-grow container mx-auto px-4 py-12 flex flex-col items-center justify-center gap-6">
+    <h1 class="text-3xl font-bold mb-6">⌚ Connect Your Wearable</h1>
+
+    <div class="glass-card w-full max-w-lg text-center">
+      <p class="mb-4">Connect your smartwatch / wearable device via Bluetooth to receive real-time notifications & SOS alerts.</p>
+      <button id="connectBtn" class="bg-cyan-500 text-black px-6 py-3 rounded-lg glow-button">Connect Wearable</button>
+    </div>
+
+    <div id="deviceInfo" class="glass-card w-full max-w-lg hidden">
+      <h2 class="text-xl font-bold mb-3">Device Info</h2>
+      <p><b>Name:</b> <span id="deviceName">—</span></p>
+      <p><b>ID:</b> <span id="deviceId">—</span></p>
+      <p><b>Status:</b> <span id="deviceStatus" class="text-green-400">Connected</span></p>
+      <button id="sendTest" class="mt-4 bg-red-500 text-white px-4 py-2 rounded-lg glow-button">Send Test Notification</button>
+    </div>
+
+    <!-- Live SOS Notification -->
+    <div id="sosAlert" class="glass-card w-full max-w-lg hidden text-center border border-red-500">
+      <h2 class="text-xl font-bold text-red-400 mb-2">🚨 SOS Alert Received!</h2>
+      <p id="sosDetails">User in danger. Location available.</p>
+      <a id="sosMapLink" href="#" target="_blank" class="mt-3 inline-block bg-red-600 text-white px-4 py-2 rounded glow-button">Open in Google Maps</a>
+    </div>
+
+    <!-- Emergency Contacts -->
+    <div class="glass-card w-full max-w-lg mt-8">
+      <h2 class="text-xl font-bold mb-4">📞 Emergency Contacts</h2>
+      <form id="contactsForm" class="flex flex-col gap-3">
+        <div><input type="text" placeholder="Name 1" id="name1" class="w-full p-2 rounded bg-black/40">
+             <input type="text" placeholder="Phone 1" id="phone1" class="w-full p-2 rounded bg-black/40 mt-1"></div>
+        <div><input type="text" placeholder="Name 2" id="name2" class="w-full p-2 rounded bg-black/40">
+             <input type="text" placeholder="Phone 2" id="phone2" class="w-full p-2 rounded bg-black/40 mt-1"></div>
+        <div><input type="text" placeholder="Name 3" id="name3" class="w-full p-2 rounded bg-black/40">
+             <input type="text" placeholder="Phone 3" id="phone3" class="w-full p-2 rounded bg-black/40 mt-1"></div>
+        <div><input type="text" placeholder="Name 4" id="name4" class="w-full p-2 rounded bg-black/40">
+             <input type="text" placeholder="Phone 4" id="phone4" class="w-full p-2 rounded bg-black/40 mt-1"></div>
+        <div><input type="text" placeholder="Name 5" id="name5" class="w-full p-2 rounded bg-black/40">
+             <input type="text" placeholder="Phone 5" id="phone5" class="w-full p-2 rounded bg-black/40 mt-1"></div>
+        <button type="submit" class="mt-4 bg-cyan-500 text-black px-4 py-2 rounded glow-button">Save Contacts</button>
+      </form>
+    </div>
+  </main>
+</div>
+
+<script>
+// Firebase init
+const firebaseConfig={
+  apiKey:"AIzaSyBcLtaRPt6hTo4aEFRvcBwNq5-00soEjB4",
+  authDomain:"sos-c1499.firebaseapp.com",
+  databaseURL:"https://sos-c1499-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"sos-c1499",
+  storageBucket:"sos-c1499.firebasestorage.app",
+  messagingSenderId:"1008729495848",
+  appId:"1:1008729495848:web:7d6c7d3a6047e2736e981d",
+  measurementId:"G-JGBY3ZZPGC"
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.database();
+
+// Elements
+const connectBtn=document.getElementById("connectBtn");
+const deviceInfo=document.getElementById("deviceInfo");
+const deviceName=document.getElementById("deviceName");
+const deviceId=document.getElementById("deviceId");
+const sendTest=document.getElementById("sendTest");
+
+const sosAlert=document.getElementById("sosAlert");
+const sosDetails=document.getElementById("sosDetails");
+const sosMapLink=document.getElementById("sosMapLink");
+
+// Connect Wearable
+connectBtn.addEventListener("click",async()=>{
+  try{
+    const device=await navigator.bluetooth.requestDevice({acceptAllDevices:true});
+    deviceName.innerText=device.name||"Unknown Device";
+    deviceId.innerText=device.id;
+    deviceInfo.classList.remove("hidden");
+
+    const uid=localStorage.getItem("userId")||"guest";
+    db.ref("wearables/"+uid).set({
+      deviceName:device.name,
+      deviceId:device.id,
+      connectedAt:Date.now()
+    });
+  }catch(err){console.error("Bluetooth error:",err);}
+});
+
+// Manual Test
+sendTest.addEventListener("click",()=>{
+  alert("🔔 Test notification sent (simulation)");
+});
+
+// Save Contacts
+const contactsForm=document.getElementById("contactsForm");
+contactsForm.addEventListener("submit",e=>{
+  e.preventDefault();
+  const uid=localStorage.getItem("userId")||"guest";
+  const contacts=[];
+  for(let i=1;i<=5;i++){
+    const name=document.getElementById("name"+i).value.trim();
+    const phone=document.getElementById("phone"+i).value.trim();
+    if(name && phone){ contacts.push({name,phone}); }
+  }
+  db.ref("contacts/"+uid).set(contacts).then(()=>{
+    alert("✅ Emergency contacts saved");
+  }).catch(err=>{
+    alert("❌ Failed: "+err);
+  });
+});
+
+// Ripple Background
+const canvas=document.getElementById("ripple-canvas"),ctx=canvas.getContext("2d");
+canvas.width=innerWidth;canvas.height=innerHeight;
+let ripples=[];
+class Ripple{constructor(x,y){this.x=x;this.y=y;this.radius=0;this.alpha=1;}
+update(){this.radius+=1.5;this.alpha-=0.01;}
+draw(){ctx.beginPath();ctx.arc(this.x,this.y,this.radius,0,2*Math.PI);
+ctx.strokeStyle=`rgba(0,255,255,${this.alpha})`;ctx.stroke();}}
+function animate(){ctx.clearRect(0,0,canvas.width,canvas.height);
+ripples.forEach((r,i)=>{r.update();r.draw();if(r.alpha<=0)ripples.splice(i,1);});
+requestAnimationFrame(animate);}
+animate();
+addEventListener("mousemove",e=>ripples.push(new Ripple(e.clientX,e.clientY)));
+addEventListener("resize",()=>{canvas.width=innerWidth;canvas.height=innerHeight});
+</script>
+</body>
+</html>

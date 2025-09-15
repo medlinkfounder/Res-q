@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ResQ 112 - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet"/>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+  <style>
+    body{font-family:'Inter',sans-serif;background:#0a0a1a;color:#e0e0e0}
+    #ripple-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
+    .content-overlay{position:relative;z-index:2;min-height:100vh;background:radial-gradient(circle,rgba(10,10,26,0.6),#0a0a1a 80%);backdrop-filter:blur(6px);}
+    .glass-card{background:rgba(255,255,255,0.05);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.1);padding:20px;border-radius:16px;transition:all .3s ease}
+    .glass-card:hover{box-shadow:0 0 10px #00ffff,0 0 25px #00ffff;}
+    .glow-button{transition:all .3s ease}
+    .glow-button:hover{box-shadow:0 0 10px #00ffff,0 0 25px #00ffff;}
+    /* 🔴 Special red neon for SOS */
+    .sos-button{transition:all .3s ease}
+    .sos-button:hover{box-shadow:0 0 15px #ff0000,0 0 35px #ff0000;}
+    /* pulsing active SOS */
+    .sos-active {
+      animation: sosPulse 1.6s infinite;
+      box-shadow: 0 0 20px #ff3b3b, 0 0 45px #ff3b3b;
+    }
+    @keyframes sosPulse {
+      0% { box-shadow: 0 0 10px #ff3b3b; transform: scale(1); }
+      50% { box-shadow: 0 0 30px #ff3b3b; transform: scale(1.02); }
+      100% { box-shadow: 0 0 10px #ff3b3b; transform: scale(1); }
+    }
+
+    /* small status label styling for active key display (if needed) */
+    .sos-status { margin-top:8px; color:#ffb3b3; font-weight:600; text-align:center; }
+
+  </style>
+</head>
+<body>
+<canvas id="ripple-canvas"></canvas>
+
+<div class="content-overlay flex flex-col min-h-screen">
+  <!-- Header -->
+  <header class="p-4 bg-black/30 flex justify-between items-center">
+    <div class="flex items-center space-x-2">
+      <img src="logo.png.png" alt="logo" class="h-10 w-10"/>
+      <span class="text-2xl font-bold text-white">ResQ 112</span>
+    </div>
+    <select id="languageSwitcher" class="bg-black/50 text-white p-2 rounded">
+      <option value="en">English</option>
+      <option value="hi">हिन्दी</option>
+      <option value="as">অসমীয়া</option>
+    </select>
+  </header>
+
+  <!-- SOS Button -->
+  <div class="flex justify-center mt-8">
+    <button id="sosBtn" class="w-40 h-40 bg-red-600 text-white text-2xl font-bold rounded-full sos-button">SOS</button>
+  </div>
+  <div class="flex justify-center mt-4">
+    <button id="stopBtn" class="px-6 py-2 bg-gray-600 text-white rounded-lg glow-button hidden">Stop SOS</button>
+  </div>
+
+  <div id="sosKeyLabel" class="flex justify-center"><div class="sos-status" id="sosKeyText"></div></div>
+
+  <!-- Dashboard Blocks -->
+  <main class="container mx-auto px-4 mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <a href="profile.html" class="glass-card p-6 rounded-xl">
+      <h3 class="text-xl font-bold mb-2" data-i18n="profile_title">👤 Profile</h3>
+      <p data-i18n="profile_desc">View and update your details.</p>
+    </a>
+    <a href="wearable.html" class="glass-card p-6 rounded-xl">
+      <h3 class="text-xl font-bold mb-2" data-i18n="wearable_title">⌚ Wearable & Emergency Contacts</h3>
+      <p data-i18n="wearable_desc">Connect devices and manage your emergency numbers.</p>
+    </a>
+    <a href="map.html" class="glass-card p-6 rounded-xl">
+      <h3 class="text-xl font-bold mb-2" data-i18n="map_title">🗺️ Map</h3>
+      <p data-i18n="map_desc">Track your location and nearby safe zones.</p>
+    </a>
+    <a href="contacts.html" class="glass-card p-6 rounded-xl">
+      <h3 class="text-xl font-bold mb-2" data-i18n="contacts_title">📞 Emergency Numbers</h3>
+      <p data-i18n="contacts_desc">Manage and call your emergency numbers.</p>
+    </a>
+    <a href="askai.html" class="glass-card p-6 rounded-xl">
+      <h3 class="text-xl font-bold mb-2" data-i18n="askai_title">🤖 Ask AI</h3>
+      <p data-i18n="askai_desc">Get real-time AI assistance.</p>
+    </a>
+    <a href="support.html" class="glass-card p-6 rounded-xl">
+      <h3 class="text-xl font-bold mb-2" data-i18n="support_title">💬 Contact Support</h3>
+      <p data-i18n="support_desc">Reach out to support team.</p>
+    </a>
+  </main>
+</div>
+
+<!-- Hidden audio element (put sos.mp3 in same folder) -->
+<audio id="sosAudio" src="sos.mp3" loop preload="auto"></audio>
+
+<script>
+// Firebase config (unchanged from yours)
+const firebaseConfig={
+  apiKey:"AIzaSyBcLtaRPt6hTo4aEFRvcBwNq5-00soEjB4",
+  authDomain:"sos-c1499.firebaseapp.com",
+  databaseURL:"https://sos-c1499-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"sos-c1499",
+  storageBucket:"sos-c1499.firebasestorage.app",
+  messagingSenderId:"1008729495848",
+  appId:"1:1008729495848:web:7d6c7d3a6047e2736e981d",
+  measurementId:"G-JGBY3ZZPGC"
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.database();
+
+// UI elements
+const sosBtn=document.getElementById("sosBtn");
+const stopBtn=document.getElementById("stopBtn");
+const sosAudio=document.getElementById("sosAudio");
+const sosKeyText=document.getElementById("sosKeyText");
+
+// runtime state
+let currentSosKey = null;
+let watchId = null;
+
+// Helper: read user info from localStorage (from your login)
+function getUserInfo() {
+  const name = localStorage.getItem("userName") || localStorage.getItem("name") || "Unknown";
+  const id = localStorage.getItem("userId") || localStorage.getItem("id") || localStorage.getItem("aadhar") || localStorage.getItem("passport") || "unknown";
+  const method = localStorage.getItem("idMethod") || localStorage.getItem("method") || "";
+  const phone = localStorage.getItem("phone") || localStorage.getItem("mobile") || "";
+  return { name, id, method, phone };
+}
+
+// Start SOS
+async function startSOS() {
+  // UI toggle
+  sosBtn.classList.add("hidden");
+  stopBtn.classList.remove("hidden");
+  sosBtn.classList.add("sos-active");
+
+  // Play audio (user click allows playback)
+  try {
+    sosAudio.currentTime = 0;
+    await sosAudio.play();
+  } catch (err) {
+    console.warn("Audio play blocked or failed:", err);
+  }
+
+  if (!navigator.geolocation) {
+    alert("Geolocation not available on this device.");
+    return;
+  }
+
+  const user = getUserInfo();
+  // get an immediate location first then start watch
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    try {
+      const refPush = db.ref('sos').push();
+      currentSosKey = refPush.key;
+      localStorage.setItem('currentSosKey', currentSosKey);
+      const payload = {
+        userId: user.id,
+        name: user.name,
+        method: user.method || "",
+        phone: user.phone || "",
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        timestamp: Date.now(),
+        status: "active"
+      };
+      await refPush.set(payload);
+      sosKeyText.innerText = `Active SOS: ${currentSosKey}`;
+    } catch (err) {
+      console.error("Failed to create SOS entry:", err);
+    }
+
+    // start watch to update location continuously
+    watchId = navigator.geolocation.watchPosition((p) => {
+      if (!currentSosKey) return;
+      const update = {
+        lat: p.coords.latitude,
+        lng: p.coords.longitude,
+        timestamp: Date.now()
+      };
+      db.ref('sos/' + currentSosKey).update(update).catch(e => console.error("update failed", e));
+    }, (err) => {
+      console.warn("watchPosition error:", err);
+    }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 });
+
+  }, (err) => {
+    console.error("getCurrentPosition failed:", err);
+    alert("Could not get location: " + err.message);
+  }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+}
+
+// Stop SOS: stop audio, stop watch, archive record
+async function stopSOS() {
+  // UI toggle
+  sosBtn.classList.remove("hidden");
+  stopBtn.classList.add("hidden");
+  sosBtn.classList.remove("sos-active");
+  sosKeyText.innerText = "";
+
+  // stop audio
+  try {
+    sosAudio.pause();
+    sosAudio.currentTime = 0;
+  } catch (err) {
+    console.warn("Failed to stop audio:", err);
+  }
+
+  // stop watch
+  if (watchId !== null) {
+    try { navigator.geolocation.clearWatch(watchId); } catch(e) {}
+    watchId = null;
+  }
+
+  // move entry to archived_sos and remove from active
+  const key = currentSosKey || localStorage.getItem('currentSosKey');
+  if (!key) {
+    alert("No active SOS found to stop.");
+    return;
+  }
+
+  try {
+    const snap = await db.ref('sos/' + key).once('value');
+    const data = snap.val();
+    if (!data) {
+      // nothing to archive; clear key
+      currentSosKey = null;
+      localStorage.removeItem('currentSosKey');
+      alert("SOS stopped (no data to archive).");
+      return;
+    }
+    // add stop metadata
+    data.stoppedAt = Date.now();
+    data.status = "archived";
+    // write to archived node (use same key)
+    await db.ref('archived_sos/' + key).set(data);
+    // remove from active
+    await db.ref('sos/' + key).remove();
+    currentSosKey = null;
+    localStorage.removeItem('currentSosKey');
+    alert("🛑 SOS stopped and archived.");
+  } catch (err) {
+    console.error("Error archiving SOS:", err);
+    alert("Error while stopping SOS. See console for details.");
+  }
+}
+
+// Hook event listeners
+sosBtn.addEventListener("click", startSOS);
+stopBtn.addEventListener("click", stopSOS);
+
+// If a key left in localStorage (from accidental reload), show label and resume audio? we will only display
+window.addEventListener("load", () => {
+  const existing = localStorage.getItem('currentSosKey');
+  if (existing) {
+    currentSosKey = existing;
+    sosKeyText.innerText = `Active SOS: ${currentSosKey}`;
+    // Show stop button so user can stop and archive it
+    sosBtn.classList.add("hidden");
+    stopBtn.classList.remove("hidden");
+    sosBtn.classList.add("sos-active");
+  }
+});
+
+// Translations (unchanged)
+const translations={
+  en:{
+    sos_btn:"SOS",
+    stop_btn:"Stop SOS",
+    profile_title:"👤 Profile",
+    profile_desc:"View and update your details.",
+    wearable_title:"⌚ Wearable & Emergency Contacts",
+    wearable_desc:"Connect devices and manage your emergency numbers.",
+    map_title:"🗺️ Map",
+    map_desc:"Track your location and nearby safe zones.",
+    contacts_title:"File an FIR",
+    contacts_desc:"Manage and call your emergency numbers.",
+    askai_title:"🤖 Ask AI",
+    askai_desc:"Get real-time AI assistance.",
+    support_title:"💬 Contact Support",
+    support_desc:"Reach out to support team."
+  },
+  hi:{
+    sos_btn:"एसओएस",
+    stop_btn:"एसओएस रोकें",
+    profile_title:"👤 प्रोफ़ाइल",
+    profile_desc:"अपनी जानकारी देखें और अपडेट करें।",
+    wearable_title:"⌚ वियरेबल और आपातकालीन संपर्क",
+    wearable_desc:"अपने वियरेबल उपकरण और आपातकालीन नंबर प्रबंधित करें।",
+    map_title:"🗺️ नक्शा",
+    map_desc:"अपना स्थान और पास के सुरक्षित क्षेत्र ट्रैक करें।",
+    contacts_title:"📞 आपातकालीन संपर्क",
+    contacts_desc:"अपने आपातकालीन नंबर प्रबंधित करें और कॉल करें।",
+    askai_title:"🤖 एआई से पूछें",
+    askai_desc:"रियल-टाइम एआई सहायता प्राप्त करें।",
+    support_title:"💬 सहायता से संपर्क करें",
+    support_desc:"सपोर्ट टीम से संपर्क करें।"
+  },
+  as:{
+    sos_btn:"এসওএছ",
+    stop_btn:"এসওএছ বন্ধ কৰক",
+    profile_title:"👤 প্ৰ’ফাইল",
+    profile_desc:"আপোনাৰ তথ্য চাওক আৰু আপডেট কৰক।",
+    wearable_title:"⌚ পৰিধানযোগ্য আৰু জরুৰী যোগাযোগ",
+    wearable_desc:"আপোনাৰ পৰিধানযোগ্য ডিভাইচ আৰু জরুৰী নম্বৰ ব্যৱস্থাপনা কৰক।",
+    map_title:"🗺️ মানচিত্ৰ",
+    map_desc:"আপোনাৰ অৱস্থান আৰু ওচৰৰ সুৰক্ষিত এলাকা অনুসৰণ কৰক।",
+    contacts_title:"📞 জরুৰী যোগাযোগ",
+    contacts_desc:"আপোনাৰ জরুৰী নম্বৰ ব্যৱস্থাপনা কৰক আৰু কল কৰক।",
+    askai_title:"🤖 এআইক প্ৰশ্ন কৰক",
+    askai_desc:"ৰিয়েল-টাইম এআই সহায় প্ৰাপ্ত কৰক।",
+    support_title:"💬 সহায়ৰ সৈতে যোগাযোগ কৰক",
+    support_desc:"সহায়ক দলেৰে যোগাযোগ কৰক।"
+  }
+};
+
+const switcher=document.getElementById("languageSwitcher");
+function updateLanguage(lang){
+  localStorage.setItem("lang",lang);
+  document.querySelectorAll("[data-i18n]").forEach(el=>{
+    const key=el.getAttribute("data-i18n");
+    if(translations[lang] && translations[lang][key]){
+      el.innerText=translations[lang][key];
+    }
+  });
+  // keep button text in sync
+  sosBtn.innerText=translations[lang].sos_btn;
+  stopBtn.innerText=translations[lang].stop_btn;
+}
+switcher.addEventListener("change",e=>updateLanguage(e.target.value));
+window.addEventListener("load",()=>{
+  const savedLang=localStorage.getItem("lang")||"en";
+  switcher.value=savedLang;
+  updateLanguage(savedLang);
+});
+
+// Ripple background
+const canvas=document.getElementById("ripple-canvas"),ctx=canvas.getContext("2d");
+canvas.width=innerWidth;canvas.height=innerHeight;
+let ripples=[];
+class Ripple{constructor(x,y){this.x=x;this.y=y;this.radius=0;this.alpha=1;}
+update(){this.radius+=1.5;this.alpha-=0.01;}
+draw(){ctx.beginPath();ctx.arc(this.x,this.y,this.radius,0,2*Math.PI);
+ctx.strokeStyle=`rgba(0,255,255,${this.alpha})`;ctx.stroke();}}
+function animate(){ctx.clearRect(0,0,canvas.width,canvas.height);
+ripples.forEach((r,i)=>{r.update();r.draw();if(r.alpha<=0)ripples.splice(i,1);});
+requestAnimationFrame(animate);}
+animate();
+addEventListener("mousemove",e=>ripples.push(new Ripple(e.clientX,e.clientY)));
+addEventListener("resize",()=>{canvas.width=innerWidth;canvas.height=innerHeight});
+</script>
+</body>
+</html>

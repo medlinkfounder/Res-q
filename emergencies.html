@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ResQ 112 - Emergencies</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body { background:#0a0a1a; color:#fff; font-family:Inter, sans-serif; }
+    .card { 
+      background:rgba(255,255,255,0.05); 
+      border:1px solid rgba(0,255,255,0.3); 
+      border-radius:12px; 
+      padding:16px; 
+      margin-bottom:14px; 
+      transition:all .3s ease;
+    }
+    .card:hover { box-shadow:0 0 20px 6px rgba(0,255,255,0.5); }
+    .map-btn {
+      display:inline-block;
+      margin-top:8px;
+      padding:8px 14px;
+      border-radius:8px;
+      background:rgba(0,255,255,0.15);
+      color:#00ffff;
+      font-weight:600;
+      text-decoration:none;
+      transition:all .3s ease;
+    }
+    .map-btn:hover {
+      background:rgba(0,255,255,0.35);
+      box-shadow:0 0 15px rgba(0,255,255,0.6);
+    }
+  </style>
+</head>
+<body class="p-6">
+  <h1 class="text-2xl font-bold mb-4">🚨 Active SOS Alerts</h1>
+  <ul id="activeList"></ul>
+
+  <h1 class="text-2xl font-bold mt-8 mb-4">📁 Archived SOS Alerts</h1>
+  <ul id="archiveList"></ul>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBcLtaRPt6hTo4aEFRvcBwNq5-00soEjB4",
+  authDomain: "sos-c1499.firebaseapp.com",
+  databaseURL: "https://sos-c1499-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "sos-c1499",
+  storageBucket: "sos-c1499.firebasestorage.app",
+  messagingSenderId: "1008729495848",
+  appId: "1:1008729495848:web:7d6c7d3a6047e2736e981d",
+  measurementId: "G-JGBY3ZZPGC"
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.database();
+
+function renderList(ref, containerId, isArchive=false){
+  db.ref(ref).on("value",snap=>{
+    const list=document.getElementById(containerId);
+    list.innerHTML="";
+    snap.forEach(child=>{
+      const d=child.val();
+      const li=document.createElement("li");
+      li.className="card";
+      li.innerHTML=`
+        <div><b>Name:</b> ${d.name||"Unknown"}</div>
+        <div><b>ID:</b> ${d.userId||"—"}</div>
+        <div><b>Location:</b> ${d.lat}, ${d.lng}</div>
+        <div><b>Time:</b> ${d.timestamp ? new Date(d.timestamp).toLocaleString() : "—"}</div>
+        ${isArchive && d.stoppedAt ? `<div><b>Stopped:</b> ${new Date(d.stoppedAt).toLocaleString()}</div>` : ""}
+        <a class="map-btn" href="https://maps.google.com/?q=${d.lat},${d.lng}" target="_blank">Open in Google Maps</a>
+      `;
+      list.appendChild(li);
+    });
+    if(!snap.exists()){
+      list.innerHTML = "<li>No entries found.</li>";
+    }
+  });
+}
+
+// Active + Archived
+renderList("sos","activeList",false);
+renderList("archived_sos","archiveList",true);
+</script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>ResQ 112 - Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet"/>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body{font-family:'Inter',sans-serif;background:#0a0a1a;color:#e0e0e0;overflow-x:hidden}
+    #ripple-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
+    .content-overlay{position:relative;z-index:2;background:radial-gradient(circle,rgba(10,10,26,0.6),#0a0a1a 80%);backdrop-filter:blur(6px);min-height:100vh}
+    .glass-card{background:rgba(255,255,255,0.05);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.1)}
+    .glow-button{box-shadow:0 0 5px #00ffff,0 0 15px #00ffff;transition:all .3s ease}
+    .glow-button:hover{box-shadow:0 0 10px #00ffff,0 0 25px #00ffff}
+  </style>
+</head>
+<body>
+<canvas id="ripple-canvas"></canvas>
+<div class="content-overlay flex flex-col min-h-screen">
+  <header class="p-4 bg-black/30 flex justify-between items-center">
+    <div class="flex items-center space-x-2">
+      <img src="logo.png.png" alt="logo" class="h-10 w-10"/>
+      <span class="text-2xl font-bold text-white">ResQ 112</span>
+    </div>
+    <select id="language-selector" class="bg-black/50 text-white px-2 py-1 rounded-md text-sm">
+      <option value="en">English</option>
+      <option value="hi">हिन्दी</option>
+      <option value="as">অসমীয়া</option>
+    </select>
+  </header>
+
+  <main class="flex flex-grow items-center justify-center px-4">
+    <div class="w-full max-w-md glass-card p-8 rounded-2xl text-center">
+      <h2 class="text-3xl font-bold mb-6" data-i18n="login_title">Identity Verification</h2>
+      <form id="login-form" class="space-y-4">
+        <!-- Step 1 -->
+        <div id="step1">
+          <input id="fullName" type="text" placeholder="Enter Full Name"
+            class="w-full p-3 rounded-lg bg-black/40 text-white text-center mb-4"/>
+          <select id="method" class="w-full p-3 rounded-lg bg-black/40 text-white text-center">
+            <option disabled selected>Select Verification Method</option>
+            <option value="aadhaar">Aadhaar Number</option>
+            <option value="passport">Passport Number</option>
+          </select>
+          <button type="button" onclick="nextStep(2)" class="w-full bg-cyan-500 text-black font-bold py-3 rounded-lg glow-button mt-4">Next</button>
+        </div>
+
+        <!-- Step 2 -->
+        <div id="step2" class="hidden">
+          <input id="idNumber" type="text" placeholder="Enter Aadhaar / Passport Number"
+            class="w-full p-3 rounded-lg bg-black/40 text-white text-center"/>
+          <button type="button" onclick="nextStep(3)" class="w-full bg-cyan-500 text-black font-bold py-3 rounded-lg glow-button mt-4">Send OTP</button>
+        </div>
+
+        <!-- Step 3 -->
+        <div id="step3" class="hidden">
+          <input id="otpInput" type="text" placeholder="Enter OTP"
+            class="w-full p-3 rounded-lg bg-black/40 text-white text-center"/>
+          <button type="submit" class="w-full bg-cyan-500 text-black font-bold py-3 rounded-lg glow-button mt-4">Get Your Unique Blockchain ID</button>
+        </div>
+      </form>
+    </div>
+  </main>
+</div>
+
+<script>
+// Firebase config
+const firebaseConfig={
+  apiKey:"AIzaSyBcLtaRPt6hTo4aEFRvcBwNq5-00soEjB4",
+  authDomain:"sos-c1499.firebaseapp.com",
+  databaseURL:"https://sos-c1499-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"sos-c1499",
+  storageBucket:"sos-c1499.firebasestorage.app",
+  messagingSenderId:"1008729495848",
+  appId:"1:1008729495848:web:7d6c7d3a6047e2736e981d",
+  measurementId:"G-JGBY3ZZPGC"
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.database();
+
+// Step navigation
+function nextStep(step){
+  document.querySelectorAll('#login-form > div').forEach(d=>d.classList.add('hidden'));
+  document.getElementById(`step${step}`).classList.remove('hidden');
+}
+
+// Submit
+document.getElementById("login-form").addEventListener("submit",e=>{
+  e.preventDefault();
+  const name=document.getElementById("fullName").value;
+  const method=document.getElementById("method").value;
+  const id=document.getElementById("idNumber").value;
+
+  if(!name||!method||!id){alert("Please fill all fields");return;}
+
+  // Blockchain ID generate (once per user id)
+  const blockchainId="BCID-"+Math.random().toString(36).substring(2,10).toUpperCase();
+
+  // Save to Firebase
+  db.ref("users/"+id).set({name,method,id,blockchainId,updatedAt:Date.now()});
+
+  // Save localStorage for profile page
+  localStorage.setItem("userId",id);
+
+  location.href="dashboard.html";
+});
+
+// Ripple
+const canvas=document.getElementById("ripple-canvas"),ctx=canvas.getContext("2d");
+canvas.width=innerWidth;canvas.height=innerHeight;
+let ripples=[];
+class Ripple{constructor(x,y){this.x=x;this.y=y;this.radius=0;this.alpha=1;}
+update(){this.radius+=1.5;this.alpha-=0.01;}
+draw(){ctx.beginPath();ctx.arc(this.x,this.y,this.radius,0,2*Math.PI);ctx.strokeStyle=`rgba(0,255,255,${this.alpha})`;ctx.stroke();}}
+function animate(){ctx.clearRect(0,0,canvas.width,canvas.height);
+  ripples.forEach((r,i)=>{r.update();r.draw();if(r.alpha<=0)ripples.splice(i,1);});
+  requestAnimationFrame(animate);}
+animate();
+addEventListener("mousemove",e=>ripples.push(new Ripple(e.clientX,e.clientY)));
+addEventListener("resize",()=>{canvas.width=innerWidth;canvas.height=innerHeight});
+</script>
+</body>
+</html>
