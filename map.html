@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tourist Location Tracker</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
@@ -114,6 +114,11 @@
       color: #ff4444; /* red text for status */
       font-weight: 500;
     }
+
+    /* small responsive tweak */
+    @media (max-width: 768px) {
+      .map-container { height: 60vh; }
+    }
   </style>
 </head>
 <body>
@@ -134,43 +139,120 @@
       <div id="map"></div>
     </div>
     <div class="controls">
-      <button onclick="shareLocation()">Share My Location</button>
+      <button id="trackBtn">Share My Location</button>
       <div id="coords">Waiting for location...</div>
     </div>
   </main>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
+
+  <!-- Firebase + tracking logic (module) -->
+  <script type="module">
+    // == Firebase (copied from Tracker.html) ==
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
+    import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAzwiwp0ByoUkofWPJG1Ux8BY8ueCDwVjM",
+      authDomain: "geo-fencing-202f9.firebaseapp.com",
+      databaseURL: "https://geo-fencing-202f9-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "geo-fencing-202f9",
+      storageBucket: "geo-fencing-202f9.firebasestorage.app",
+      messagingSenderId: "815479242725",
+      appId: "1:815479242725:web:0eaae779912a495b94f90c",
+      measurementId: "G-WB7LFFPT4D"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Generate unique id for this client/session (you can change this as needed)
+    const touristId = "tourist_" + Math.floor(Math.random() * 100000);
+
+    // == Leaflet map setup (kept from map.html) ==
     const map = L.map('map').setView([20.5937, 78.9629], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    let marker;
+    let marker = null;
+    let accuracyCircle = null;
+    let watchId = null;
 
-    function shareLocation() {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            document.getElementById("coords").textContent =
-              `Lat: ${lat}, Lng: ${lng}`;
-            if (marker) map.removeLayer(marker);
-            marker = L.marker([lat, lng]).addTo(map)
-              .bindPopup("You are here!").openPopup();
-            map.setView([lat, lng], 13);
-          },
-          (err) => {
-            document.getElementById("coords").textContent =
-              "Error: " + err.message;
-          }
-        );
-      } else {
-        document.getElementById("coords").textContent =
-          "Geolocation not supported.";
+    function startTracking() {
+      if (!navigator.geolocation) {
+        document.getElementById("coords").textContent = "Geolocation not supported.";
+        return;
       }
+
+      // If already tracking, stop it (toggle behavior)
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        document.getElementById("trackBtn").textContent = "Share My Location";
+        document.getElementById("coords").textContent = "Tracking stopped.";
+        return;
+      }
+
+      document.getElementById("trackBtn").textContent = "Stop Sharing";
+      document.getElementById("coords").textContent = "Starting tracking...";
+
+      watchId = navigator.geolocation.watchPosition((position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const acc = position.coords.accuracy;
+
+        // Save to Firebase under 'tourists/<touristId>'
+        set(ref(db, 'tourists/' + touristId), {
+          latitude: lat,
+          longitude: lng,
+          accuracy: acc,
+          timestamp: Date.now()
+        });
+
+        // Update marker on map
+        if (!marker) {
+          marker = L.marker([lat, lng]).addTo(map);
+        } else {
+          marker.setLatLng([lat, lng]);
+        }
+
+        // Update accuracy circle
+        if (accuracyCircle) {
+          accuracyCircle.remove();
+        }
+        accuracyCircle = L.circle([lat, lng], {
+          radius: acc,
+          color: "#00FFFF",
+          fillColor: "#00FFFF",
+          fillOpacity: 0.18
+        }).addTo(map);
+
+        // Center map (optional: comment out if you don't want auto-centering)
+        map.setView([lat, lng], 17);
+        map.invalidateSize();
+
+        document.getElementById("coords").textContent =
+          `Tourist: ${touristId} | Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)} (±${Math.round(acc)}m)`;
+      }, (err) => {
+        document.getElementById("coords").textContent = "Error: " + err.message;
+      }, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      });
     }
+
+    // Expose to button
+    document.getElementById("trackBtn").addEventListener('click', startTracking);
+
+    // Optional: when page unloads, clear watch
+    window.addEventListener('beforeunload', () => {
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    });
+
+    // For debugging: expose touristId globally if you want to reference from console
+    window._touristId = touristId;
   </script>
 </body>
 </html>
